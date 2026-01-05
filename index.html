@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UYEN XINH</title>
+    <title>UYEN XINH - Final Version</title>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
+        /* Khung camera nhỏ ở góc dưới */
         #preview-video {
             position: absolute; bottom: 10px; right: 10px;
             width: 160px; height: 120px; border-radius: 8px;
@@ -21,47 +22,65 @@
     <canvas id="preview-video"></canvas>
 
     <script>
-        const PARTICLE_COUNT = 20000;
+        // CẤU HÌNH CHUNG
+        const PARTICLE_COUNT = 20000; // Số lượng hạt
         let expansionFactor = 0, currentShape = 'heart', time = 0;
         let targetPos = { x: 0, y: 0 }, currentPos = { x: 0, y: 0 }, sE = 0;
+        
+        // Mảng chứa các hạt hiện tại và đích đến
         let transitionParticles = []; 
         const shapePresets = { heart: [], planet: [], iloveyou: [], uynnxinh: [] };
         let targets = [], dirs = [];
 
+        // KHỞI TẠO THREE.JS
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.z = 22; 
+        
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
+        // Tạo hạt (Particles)
         const geometry = new THREE.BufferGeometry();
-        const material = new THREE.PointsMaterial({ size: 0.045, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.9 });
+        const material = new THREE.PointsMaterial({ 
+            size: 0.05, // Kích thước hạt
+            transparent: true, 
+            blending: THREE.AdditiveBlending, 
+            depthWrite: false, 
+            opacity: 0.9,
+            vertexColors: false 
+        });
         const particleSystem = new THREE.Points(geometry, material);
         scene.add(particleSystem);
 
+        // HÀM TẠO HÌNH DÁNG (LOGIC CHÍNH)
         function initShapes() {
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const p = i / PARTICLE_COUNT;
-                const b = (Math.random() - 0.5) * 0.3;
-                const z = (Math.random() - 0.5) * 0.5;
+                const b = (Math.random() - 0.5) * 0.3; // Độ nhiễu
+                const z = (Math.random() - 0.5) * 0.5; // Độ sâu
 
-                // 1. HEART
+                // 1. HÌNH TRÁI TIM (HEART)
                 const tH = Math.random() * Math.PI * 2;
-                shapePresets.heart.push(new THREE.Vector3(0.25*(16*Math.pow(Math.sin(tH),3)), 0.25*(13*Math.cos(tH)-5*Math.cos(2*tH)-2*Math.cos(3*tH)-Math.cos(4*tH)), z*2));
+                const hx = 16 * Math.pow(Math.sin(tH), 3);
+                const hy = 13 * Math.cos(tH) - 5 * Math.cos(2 * tH) - 2 * Math.cos(3 * tH) - Math.cos(4 * tH);
+                shapePresets.heart.push(new THREE.Vector3(hx * 0.25, hy * 0.25, z * 2));
 
-                // 2. PLANET
+                // 2. HÌNH HÀNH TINH (PLANET)
                 if (i < PARTICLE_COUNT * 0.6) {
-                    const phi = Math.acos(-1 + (2 * i) / (PARTICLE_COUNT * 0.6)), theta = Math.sqrt(PARTICLE_COUNT * 0.6 * Math.PI) * phi;
+                    const phi = Math.acos(-1 + (2 * i) / (PARTICLE_COUNT * 0.6));
+                    const theta = Math.sqrt(PARTICLE_COUNT * 0.6 * Math.PI) * phi;
                     shapePresets.planet.push(new THREE.Vector3(5*Math.cos(theta)*Math.sin(phi), 5*Math.sin(theta)*Math.sin(phi), 5*Math.cos(phi)));
                 } else {
                     const a = Math.random()*Math.PI*2, r = 7 + Math.random()*3;
                     shapePresets.planet.push(new THREE.Vector3(Math.cos(a)*r, (Math.random()-0.5)*0.5, Math.sin(a)*r));
                 }
 
-                // 3. I LOVE YOU
+                // 3. I LOVE YOU (Đã thu nhỏ 1/2)
                 let lx = 0, ly = 0;
-                const ls = 0.45;
+                const ls = 0.1; // Scale nhỏ (Gốc là 0.2)
+                // Logic vẽ chữ I LOVE YOU
                 if (p < 0.05) { lx = -40; ly = (Math.random()-0.5)*14; } 
                 else if (p < 0.15) { if (Math.random()>0.3) { lx = -22; ly = (Math.random()-0.5)*14; } else { lx = -22 + Math.random()*8; ly = -7; } }
                 else if (p < 0.30) { const ang = Math.random()*Math.PI*2; lx = -5 + Math.cos(ang)*5; ly = Math.sin(ang)*7; }
@@ -70,55 +89,65 @@
                 else if (p < 0.70) { const tY = (Math.random()-0.5)*2; if (tY < 0) { lx = 45 + tY*4; ly = -tY*7; } else { lx = 45 + tY*4; ly = tY*7; } if (Math.random()>0.6) { lx = 45; ly = -Math.random()*7; } }
                 else if (p < 0.85) { const ang = Math.random()*Math.PI*2; lx = 58 + Math.cos(ang)*5; ly = Math.sin(ang)*7; }
                 else { const tU = Math.random()*Math.PI; lx = 71 + Math.cos(tU+Math.PI)*5; ly = (Math.sin(tU+Math.PI)*8) + 2; if (Math.random()>0.4) { lx = (Math.random()>0.5?66:76); ly = 2+Math.random()*5; } }
+                // Đẩy vào mảng
                 shapePresets.iloveyou.push(new THREE.Vector3((lx - 15)*ls, ly*ls, z));
 
-                // 4. UYEN XINH (THU NHỎ 1/2)
+                // 4. UYEN XINH (Cân đối & Đều hạt)
                 let ux = 0, uy = 0;
-                const us = 0.28; // Giảm hệ số này để thu nhỏ chữ
-                if (p < 0.12) { // U
-                    const tU = Math.random()*Math.PI; ux = -15 + Math.cos(tU+Math.PI)*4.5; uy = Math.sin(tU+Math.PI)*7 + 2;
-                    if (Math.random()>0.5) { ux = (Math.random()>0.5?-19.5:-10.5); uy = 2+Math.random()*5; }
-                } else if (p < 0.22) { // Y
-                    const tY = (Math.random()-0.5)*2;
-                    if (tY < 0) { ux = -2 + tY*4.5; uy = -tY*8; } else { ux = -2 + tY*4.5; uy = tY*8; }
-                    if (Math.random()>0.6) { ux = -2; uy = -Math.random()*8; }
-                } else if (p < 0.34) { // E (Đổi từ N sang E)
-                    const rE = Math.random(); ux = 10 + Math.random()*7;
-                    if (rE<0.4) { ux = 10; uy = (Math.random()-0.5)*14; } else if (rE<0.6) uy = 7; else if (rE<0.8) uy = 0; else uy = -7;
-                } else if (p < 0.46) { // N
-                    ux = 22 + (Math.random()>0.5?0:7); uy = (Math.random()-0.5)*14;
-                    if (Math.random()>0.7) { const tN = Math.random(); ux = 22 + tN*7; uy = 7 - tN*14; }
-                } 
-                else if (p < 0.60) { // X
-                    const tX = (Math.random()-0.5)*2; ux = 48 + tX*5; uy = (Math.random()>0.5? tX*8 : -tX*8);
-                } else if (p < 0.72) { // I
-                    ux = 57; uy = (Math.random()-0.5)*14;
-                } else if (p < 0.86) { // N
-                    ux = 63 + (Math.random()>0.5?0:7); uy = (Math.random()-0.5)*14;
-                    if (Math.random()>0.7) { const tN = Math.random(); ux = 63 + tN*7; uy = 7 - tN*14; }
-                } else { // H
-                    ux = 74 + (Math.random()>0.5?0:7); uy = (Math.random()-0.5)*14;
-                    if (Math.random()>0.7) { ux = 74 + Math.random()*7; uy = 0; }
-                }
-                shapePresets.uynnxinh.push(new THREE.Vector3((ux - 30)*us + b, uy*us + b, z));
+                const us = 0.20; // Giữ nguyên kích thước chữ tên để nổi bật
 
+                if (p < 0.125) { // U
+                    const tU = Math.random() * Math.PI; ux = -35 + Math.cos(tU + Math.PI) * 5; uy = Math.sin(tU + Math.PI) * 7 + 2;
+                    if (Math.random() > 0.5) { ux = (Math.random() > 0.5 ? -40 : -30); uy = 2 + Math.random() * 5; }
+                } else if (p < 0.25) { // Y
+                    const tY = (Math.random() - 0.5) * 2; if (tY < 0) { ux = -20 + tY * 4.5; uy = -tY * 8; } else { ux = -20 + tY * 4.5; uy = tY * 8; }
+                    if (Math.random() > 0.6) { ux = -20; uy = -Math.random() * 8; }
+                } else if (p < 0.375) { // E
+                    const rE = Math.random(); ux = -10 + Math.random() * 7;
+                    if (rE < 0.35) { ux = -10; uy = (Math.random() - 0.5) * 14; } else if (rE < 0.55) uy = 7; else if (rE < 0.75) uy = 0; else uy = -7;
+                } else if (p < 0.50) { // N
+                    ux = 0 + (Math.random() > 0.5 ? 0 : 7); uy = (Math.random() - 0.5) * 14;
+                    if (Math.random() > 0.65) { const tN = Math.random(); ux = 0 + tN * 7; uy = 7 - tN * 14; }
+                } else if (p < 0.65) { // X
+                    const tX = (Math.random() - 0.5) * 2; ux = 20 + tX * 5; uy = (Math.random() > 0.5 ? tX * 8 : -tX * 8);
+                } else if (p < 0.72) { // I
+                    ux = 30; uy = (Math.random() - 0.5) * 14;
+                } else if (p < 0.86) { // N
+                    ux = 38 + (Math.random() > 0.5 ? 0 : 7); uy = (Math.random() - 0.5) * 14;
+                    if (Math.random() > 0.65) { const tN = Math.random(); ux = 38 + tN * 7; uy = 7 - tN * 14; }
+                } else { // H
+                    ux = 50 + (Math.random() > 0.5 ? 0 : 7); uy = (Math.random() - 0.5) * 14;
+                    if (Math.random() > 0.7) { ux = 50 + Math.random() * 7; uy = 0; }
+                }
+                // Căn giữa (-5 offset)
+                shapePresets.uynnxinh.push(new THREE.Vector3((ux - 5) * us + b, uy * us + b, z));
+
+                // [QUAN TRỌNG] Khởi tạo mảng chuyển động để tránh lỗi "undefined"
                 transitionParticles.push(shapePresets.heart[i].clone());
             }
+            // Thiết lập hình ban đầu
             targets = shapePresets['heart'];
             dirs = targets.map(t => t.clone().normalize().multiplyScalar(Math.random() * 20 + 10));
         }
 
+        // HÀM CHUYỂN ĐỔI HÌNH DÁNG
         function switchShape(name) {
             if (currentShape === name) return;
             currentShape = name;
             targets = shapePresets[name];
             dirs = targets.map(t => t.clone().normalize().multiplyScalar(Math.random() * 20 + 10));
-            // ĐỔI SANG MÀU XANH NEON (0x00ffff) CHO UYEN XINH
-            material.color.set(name === 'heart' ? 0xff3366 : (name === 'planet' ? 0x00ffff : (name === 'uynnxinh' ? 0x00ffff : 0xff0088)));
+            
+            // CHỈNH MÀU SẮC
+            // Heart: Hồng | Planet: Xanh | UyenXinh: Xanh | ILoveYou: Hồng đậm
+            if (name === 'heart') material.color.set(0xff3366);
+            else if (name === 'planet') material.color.set(0x00ffff);
+            else if (name === 'uynnxinh') material.color.set(0x00ffff); // Xanh Neon
+            else material.color.set(0xff00ff); // I Love You màu hồng
         }
 
         initShapes();
 
+        // XỬ LÝ CAMERA VÀ HAND TRACKING
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
         
@@ -130,21 +159,26 @@
 
             if (res.multiHandLandmarks && res.multiHandLandmarks.length > 0) {
                 const lm = res.multiHandLandmarks[0];
+                // Di chuyển theo ngón tay trỏ
                 targetPos.x = -(lm[9].x - 0.5) * 35;
                 targetPos.y = -(lm[9].y - 0.5) * 26;
 
                 const open = (i) => lm[i].y < lm[i-2].y;
+                // Kiểm tra cử chỉ OK (ngón cái chạm ngón trỏ)
                 const distOK = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
                 const isOK = distOK < 0.05;
 
                 const allOpen = Math.abs(lm[4].x - lm[9].x) > 0.12 && open(8) && open(12) && open(16) && open(20);
-                expansionFactor = allOpen ? 1.4 : 0;
+                expansionFactor = allOpen ? 1.4 : 0; // Hiệu ứng nổ khi xòe tay
 
-                if (isOK) switchShape('uynnxinh');
-                else if (open(8) && open(12) && !open(16)) switchShape('iloveyou');
-                else if (open(8) && !open(12)) switchShape('heart');
-                else if (open(8) && open(12) && open(16)) switchShape('planet');
-            } else { targetPos = {x:0, y:0}; expansionFactor = 0; }
+                // LOGIC CHUYỂN HÌNH
+                if (isOK) switchShape('uynnxinh');               // OK -> Tên
+                else if (open(8) && open(12) && !open(16)) switchShape('iloveyou'); // 2 ngón -> I Love You
+                else if (open(8) && !open(12)) switchShape('heart');                // 1 ngón -> Tim
+                else if (open(8) && open(12) && open(16)) switchShape('planet');    // 3 ngón -> Hành tinh
+            } else { 
+                targetPos = {x:0, y:0}; expansionFactor = 0; 
+            }
         });
 
         const cam = new Camera(document.getElementById('input-video'), {
@@ -153,23 +187,29 @@
         });
         cam.start();
 
+        // VÒNG LẶP ANIMATION
         function animate() {
             requestAnimationFrame(animate);
             time = Date.now() * 0.0012; 
             sE += (expansionFactor - sE) * 0.25;
+            
+            // Di chuyển mượt (lerp)
             currentPos.x += (targetPos.x - currentPos.x) * 0.45;
             currentPos.y += (targetPos.y - currentPos.y) * 0.45;
 
+            // Xoay nhẹ khối hạt
             const pitch = Math.sin(time * 1.5) * 0.18; 
             particleSystem.position.set(currentPos.x, currentPos.y, 0);
             particleSystem.rotation.set(pitch, Math.cos(time*0.5)*0.1, 0);
 
             const posArr = new Float32Array(PARTICLE_COUNT * 3);
             for (let i = 0; i < PARTICLE_COUNT; i++) {
+                // Chuyển đổi vị trí hạt về hình dáng mục tiêu
                 transitionParticles[i].x += (targets[i].x - transitionParticles[i].x) * 0.15;
                 transitionParticles[i].y += (targets[i].y - transitionParticles[i].y) * 0.15;
                 transitionParticles[i].z += (targets[i].z - transitionParticles[i].z) * 0.15;
 
+                // Thêm độ nhiễu và hiệu ứng nổ
                 const noise = Math.sin(time * 4 + i) * 0.015;
                 posArr[i*3] = transitionParticles[i].x + dirs[i].x * sE + noise;
                 posArr[i*3+1] = transitionParticles[i].y + dirs[i].y * sE + noise;
@@ -181,5 +221,4 @@
         animate();
     </script>
 </body>
-
 </html>
