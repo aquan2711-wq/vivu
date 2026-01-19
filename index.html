@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Gesture Particles - Final Fix</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        #video-input { display: none; }
+        #loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #00ffff; font-family: sans-serif; font-size: 18px; text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="loader">ĐANG KHỞI TẠO CAMERA & AI...<br><small>(Vui lòng nhấn "Cho phép" nếu có thông báo)</small></div>
+    <div id="canvas-container"></div>
+    <video id="video-input" playsinline></video>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.4/camera_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+
+    <script>
+        let scene, camera, renderer, material, geometry;
+        let targetGesture = 0, currentGesture = 0;
+
+        function initScene() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.z = 8;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            geometry = new THREE.BufferGeometry();
+            const count = 15000;
+            const pos = new Float32Array(count * 3);
+            const targets = new Float32Array(count * 3);
+
+            for(let i=0; i<count; i++) {
+                const i3 = i * 3;
+                const r = 4 + Math.random() * 0.5;
+                const t = Math.random() * Math.PI * 2;
+                const p = Math.acos(2 * Math.random() - 1);
+                targets[i3] = r * Math.sin(p) * Math.cos(t);
+                targets[i3+1] = r * Math.sin(p) * Math.sin(t);
+                targets[i3+2] = r * Math.cos(p);
+            }
+            geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geometry.setAttribute('aTarget', new THREE.BufferAttribute(targets, 3));
+
+            material = new THREE.ShaderMaterial({
+                uniforms: { uTime: {value:0}, uGesture: {value:0} },
+                vertexShader: `
+                    uniform float uGesture; uniform float uTime;
+                    attribute vec3 aTarget;
+                    void main() {
+                        vec3 p = mix(aTarget, vec3(0.0), uGesture);
+                        p += sin(uTime * 2.0 + aTarget.y) * 0.05;
+                        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+                        gl_PointSize = 3.5 * (10.0 / -mv.z);
+                        gl_Position = projectionMatrix * mv;
+                    }
+                `,
+                fragmentShader: `
+                    void main() {
+                        if(distance(gl_PointCoord, vec2(0.5)) > 0.5) discard;
+                        gl_FragColor = vec4(0.0, 1.0, 1.0, 0.8);
+                    }
+                `,
+                transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            scene.add(new THREE.Points(geometry, material));
+        }
+
+        async function initAI() {
+            const videoElement = document.getElementById('video-input');
+            const hands = new Hands({locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`});
+            
+            hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+            
+            hands.onResults((res) => {
+                document.getElementById('loader').style.display = 'none';
+                if(res.multiHandLandmarks && res.multiHandLandmarks.length > 0) {
+                    const l = res.multiHandLandmarks[0];
+                    const d = Math.hypot(l[4].x-l[8].x, l[4].y-l[8].y);
+                    targetGesture = d < 0.06 ? 1.0 : 0.0;
+                } else { targetGesture = 0; }
+            });
+
+            const cam = new window.Camera(videoElement, {
+                onFrame: async () => { await hands.send({image: videoElement}); },
+                width: 640, height: 480
+            });
+            cam.start().catch(e => {
+                document.getElementById('loader').innerHTML = "LỖI CAMERA: Hãy đảm bảo bạn đã cấp quyền sử dụng Webcam.";
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            currentGesture += (targetGesture - currentGesture) * 0.1;
+            material.uniforms.uGesture.value = currentGesture;
+            material.uniforms.uTime.value = performance.now() * 0.001;
+            renderer.render(scene, camera);
+        }
+
+        window.onload = () => { initScene(); initAI(); animate(); };
+    </script>
+</body>
+</html>
